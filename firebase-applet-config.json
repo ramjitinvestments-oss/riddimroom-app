@@ -7,7 +7,3 @@
   appId: "1:814295273846:web:54a2519ea6b62c89426a57",
   measurementId: "G-4SQJ0JKQYV"
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
