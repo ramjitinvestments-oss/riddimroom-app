@@ -1,10 +1,13 @@
-{
-  "projectId": "centering-dynamics-plsxp",
-  "appId": "1:822522966517:web:dae637f6748c47172230bc",
-  "apiKey": "AIzaSyCqYhrA8fcUZRotmVYOWaHDtJ2lWBlJkDM",
-  "authDomain": "centering-dynamics-plsxp.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-1cb852bd-4686-4648-9b82-6a2881e2c53a",
-  "storageBucket": "centering-dynamics-plsxp.firebasestorage.app",
-  "messagingSenderId": "822522966517",
-  "measurementId": ""
-}
+ {
+  apiKey: "AIzaSyB2W8yqUdLlQwJBG5_j6EcUR7-dTi10OQI",
+  authDomain: "riddimroomeventcam.firebaseapp.com",
+  projectId: "riddimroomeventcam",
+  storageBucket: "riddimroomeventcam.firebasestorage.app",
+  messagingSenderId: "814295273846",
+  appId: "1:814295273846:web:54a2519ea6b62c89426a57",
+  measurementId: "G-4SQJ0JKQYV"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
