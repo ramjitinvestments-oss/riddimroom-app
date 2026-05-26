@@ -1,0 +1,11 @@
+{
+  "name": "RiddimroomEventCam",
+  "description": "Premium EventCam Live branded with Riddim Room colors, logo overlays, and user-friendly creative options for high-performance capture.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about registered users and their app usage.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "status": { 
+          "type": "string", 
+          "enum": ["PENDING", "APPROVED", "DENIED", "SUSPENDED"],
+          "description": "Access status of the user account."
+        },
+        "role": { 
+          "type": "string", 
+          "enum": ["USER", "ADMIN"],
+          "description": "Permission level of the user."
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" },
+        "openCount": { "type": "integer" },
+        "captureCount": { "type": "integer" },
+        "photoCount": { "type": "integer" },
+        "videoCount": { "type": "integer" }
+      },
+      "required": ["email", "displayName", "status", "role", "createdAt", "lastActiveAt", "openCount", "captureCount", "photoCount", "videoCount"]
+    },
+    "Admin": {
+      "title": "Admin Record",
+      "description": "Trust-root for administrative access.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "GlobalConfig": {
+      "title": "Global Settings",
+      "description": "Admin configuration containing expiration times and kill switches.",
+      "type": "object",
+      "properties": {
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "disabled": { "type": "boolean" }
+      },
+      "required": ["expiresAt", "disabled"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User account profiling and metrics."
+    },
+    "admins/{userId}": {
+      "schema": "Admin",
+      "description": "Authentication trust-root for admin privileges."
+    },
+    "config/global": {
+      "schema": "GlobalConfig",
+      "description": "Global settings controlled by the admin."
+    }
+  }
+}
