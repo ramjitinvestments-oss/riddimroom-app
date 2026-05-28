@@ -1706,7 +1706,7 @@ export default function App() {
   const [displayName, setDisplayName] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
-
+  
   const [pendingCount, setPendingCount] = useState(0);
 
   // Administrative verification (Aggressive detection for RamjitInvestments@gmail.com)
@@ -2323,7 +2323,6 @@ export default function App() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<number | null>(null);
-  const synthIntervalRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const [logoReady, setLogoReady] = useState(false);
@@ -2700,10 +2699,6 @@ export default function App() {
     startCamera();
     return () => {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      if (synthIntervalRef.current) {
-        clearInterval(synthIntervalRef.current);
-        synthIntervalRef.current = null;
-      }
       if (audioContextRef.current) {
         if (audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close().catch(() => {});
@@ -3402,91 +3397,6 @@ export default function App() {
         makeupGain.connect(limiter);
       }
 
-      // Live synthesizer engine - Schedules standard professional beat & chime on accurate Web Audio clock
-      // This guarantees the download has beautiful, clear sound regardless of device/browser permissions.
-      let currentBeat = 0;
-      let nextBeatTime = audioCtx.currentTime + 0.1;
-      const beatInterval = 0.5; // 120 beats per minute
-      
-      const scheduleSynthBeat = (time: number, beatIndex: number) => {
-        if (!audioCtx) return;
-        
-        // Kick Drum sound
-        const kickOsc = audioCtx.createOscillator();
-        const kickGain = audioCtx.createGain();
-        kickOsc.connect(kickGain);
-        kickGain.connect(limiter);
-        
-        kickOsc.frequency.setValueAtTime(120, time);
-        kickOsc.frequency.exponentialRampToValueAtTime(45, time + 0.08);
-        
-        if (micEnabled) {
-          kickGain.gain.setValueAtTime(0.18, time);
-        } else {
-          kickGain.gain.setValueAtTime(0.18, time);
-        }
-        kickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-        
-        kickOsc.start(time);
-        kickOsc.stop(time + 0.12);
-        
-        // High hat on odd beats
-        if (beatIndex % 2 === 1) {
-          const hatOsc = audioCtx.createOscillator();
-          const hatGain = audioCtx.createGain();
-          hatOsc.type = 'triangle';
-          hatOsc.frequency.setValueAtTime(7000, time);
-          
-          hatOsc.connect(hatGain);
-          hatGain.connect(limiter);
-          
-          hatGain.gain.setValueAtTime(0.05, time);
-          hatGain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-          
-          hatOsc.start(time);
-          hatOsc.stop(time + 0.05);
-        }
-        
-        // Melodic synthesizer sequence (clean, bright chimes inside 7th chord harmonics)
-        const chordChimes = [
-          [261.63, 311.13, 392.00, 466.16], // Cm7 (cool slate vibe)
-          [349.23, 415.30, 523.25, 622.25], // Fm7 (warm groove)
-          [293.66, 349.23, 440.00, 523.25], // Dm7 (classic vibe)
-          [392.00, 466.16, 587.33, 698.46]  // Gm7 (resolving beat)
-        ];
-        
-        const activeChord = chordChimes[Math.floor(beatIndex / 4) % chordChimes.length];
-        const freq1 = activeChord[beatIndex % activeChord.length];
-        
-        const synthOsc = audioCtx.createOscillator();
-        const synthGain = audioCtx.createGain();
-        synthOsc.type = 'sine';
-        synthOsc.frequency.setValueAtTime(freq1, time);
-        
-        synthOsc.connect(synthGain);
-        synthGain.connect(limiter);
-        
-        // Soft volume to sit nicely as background studio ambient music
-        synthGain.gain.setValueAtTime(0.06, time);
-        synthGain.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
-        
-        synthOsc.start(time);
-        synthOsc.stop(time + 0.4);
-      };
-      
-      const synthInterval = window.setInterval(() => {
-        if (!audioCtx || audioCtx.state === 'closed') {
-          clearInterval(synthInterval);
-          return;
-        }
-        while (nextBeatTime < audioCtx.currentTime + 0.3) {
-          scheduleSynthBeat(nextBeatTime, currentBeat);
-          nextBeatTime += beatInterval;
-          currentBeat++;
-        }
-      }, 100);
-      synthIntervalRef.current = synthInterval;
-
       // Connect a feedback-safe silent gain node to destination to maintain active rendering state in browsers
       const silentHardwareGain = audioCtx.createGain();
       silentHardwareGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
@@ -3569,10 +3479,6 @@ export default function App() {
         setIsRecording(false);
         setRecordingTime(0);
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-        if (synthIntervalRef.current) {
-          clearInterval(synthIntervalRef.current);
-          synthIntervalRef.current = null;
-        }
         
         // Shut down audio context to release Web Audio assets and audio device hooks cleanly
         if (audioContextRef.current) {
@@ -3595,10 +3501,6 @@ export default function App() {
 
     } catch (err) {
       console.error('Failed to start recording:', err);
-      if (synthIntervalRef.current) {
-        clearInterval(synthIntervalRef.current);
-        synthIntervalRef.current = null;
-      }
       // Clean up AudioContext if startup fails
       if (audioContextRef.current) {
         if (audioContextRef.current.state !== 'closed') {
@@ -5548,9 +5450,9 @@ export default function App() {
         )}
       </div>
 
-        <AnimatePresence>
-          {showResetConfirm && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
+      <AnimatePresence>
+        {showResetConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
               <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-[32px] p-8 text-center space-y-6 shadow-2xl">
                 <div className="mx-auto w-16 h-16 bg-[#FFD100]/5 border border-[#FFD100]/20 rounded-full flex items-center justify-center"><RotateCcw size={24} className="text-[#FFD100]" /></div>
                 <div className="space-y-2">
