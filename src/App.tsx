@@ -1628,7 +1628,7 @@ const removeSolidBackground = (imgElement: HTMLImageElement, tolerance: number =
   });
 };
 
-const RIDDIM_ROOM_DEFAULT_LOGO = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(RIDDIM_ROOM_LOGO_SVG)}`;
+const RIDDIM_ROOM_DEFAULT_LOGO = '/riddim_logo.jpg';
 
 const INITIAL_SETTINGS: EventCamSettings = {
   watermark: {
@@ -1650,7 +1650,7 @@ const INITIAL_SETTINGS: EventCamSettings = {
     fontWeight: 'bold',
     fontStyle: 'normal',
     x: 50,
-    y: 50
+    y: 90
   },
   exportFormat: 'image/png',
   aspectRatio: '16:9',
@@ -1694,7 +1694,6 @@ export default function App() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [tempExpiresAt, setTempExpiresAt] = useState('2026-05-22');
   const [configSaving, setConfigSaving] = useState(false);
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [authProcessing, setAuthProcessing] = useState(false);
@@ -1757,36 +1756,8 @@ export default function App() {
   const isExpired = React.useMemo(() => {
     if (userIsAdmin) return false;
     if (globalConfig?.disabled) return true;
-    if (!globalConfig || !globalConfig.expiresAt) return false;
-    
-    let expiryDate: Date;
-    if (typeof globalConfig.expiresAt.toDate === 'function') {
-      expiryDate = globalConfig.expiresAt.toDate();
-    } else if (globalConfig.expiresAt.seconds) {
-      expiryDate = new Date(globalConfig.expiresAt.seconds * 1000);
-    } else {
-      expiryDate = new Date(globalConfig.expiresAt);
-    }
-    return expiryDate.getTime() < Date.now();
+    return false;
   }, [globalConfig, userIsAdmin]);
-
-  // Clean human readable date formatter for expired views
-  const formattedExpiryDate = React.useMemo(() => {
-    if (!globalConfig || !globalConfig.expiresAt) return '';
-    let dateObj: Date;
-    if (typeof globalConfig.expiresAt.toDate === 'function') {
-      dateObj = globalConfig.expiresAt.toDate();
-    } else if (globalConfig.expiresAt.seconds) {
-      dateObj = new Date(globalConfig.expiresAt.seconds * 1000);
-    } else {
-      dateObj = new Date(globalConfig.expiresAt);
-    }
-    return dateObj.toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }, [globalConfig]);
 
   // User Filtering Memo of search input
   const filteredUsers = React.useMemo(() => {
@@ -1936,20 +1907,6 @@ export default function App() {
           expiresAt: data.expiresAt,
           disabled: !!data.disabled
         });
-        
-        // Synced helper to format date to human input format inside admin pane
-        if (data.expiresAt) {
-          let dateObj: Date;
-          if (typeof data.expiresAt.toDate === 'function') {
-            dateObj = data.expiresAt.toDate();
-          } else {
-            dateObj = new Date(data.expiresAt);
-          }
-          const yyyy = dateObj.getFullYear();
-          const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-          const dd = String(dateObj.getDate()).padStart(2, '0');
-          setTempExpiresAt(`${yyyy}-${mm}-${dd}`);
-        }
       }
       setIsConfigLoaded(true);
     }, (error) => {
@@ -2025,7 +1982,6 @@ export default function App() {
             expiresAt: defaultExpiration,
             disabled: false
           });
-          setTempExpiresAt('2026-05-22');
         } catch (err) {
           console.error("Bootstrap config failure:", err);
         }
@@ -2053,13 +2009,13 @@ export default function App() {
     }
   };
 
-  // Admin mutation for expiration dates & active state toggling
-  const saveAdminSettings = async (disabledStatus: boolean, newExpiryDateStr: string) => {
+  // Admin mutation for active state toggling
+  const saveAdminSettings = async (disabledStatus: boolean) => {
     if (!userIsAdmin) return;
     setConfigSaving(true);
     try {
-      const cleanDate = new Date(`${newExpiryDateStr}T23:59:59Z`);
       const configRef = doc(db, 'config', 'global');
+      const cleanDate = globalConfig?.expiresAt ? globalConfig.expiresAt : new Date('2026-05-22T23:59:59Z');
       await setDoc(configRef, {
         expiresAt: cleanDate,
         disabled: disabledStatus
@@ -2420,8 +2376,9 @@ export default function App() {
             } catch (logoErr) {
               console.warn('Stored watermark blob failed to load, falling back to default logo:', logoErr);
               saved.watermark.assetUrl = RIDDIM_ROOM_DEFAULT_LOGO;
-              const defaultBlob = new Blob([RIDDIM_ROOM_LOGO_SVG], { type: 'image/svg+xml;charset=utf-8' });
               try {
+                const defaultResponse = await fetch(RIDDIM_ROOM_DEFAULT_LOGO);
+                const defaultBlob = await defaultResponse.blob();
                 await setLogo(defaultBlob);
               } catch (defaultLogoErr) {
                 console.error('Even default logo failed to set:', defaultLogoErr);
@@ -2431,11 +2388,14 @@ export default function App() {
             saved.watermark.assetUrl = RIDDIM_ROOM_DEFAULT_LOGO;
           }
           
-          // Migration: If the loaded text overlay matches old "RIDDIM ROOM" or is empty, migrate it to "RIDDIMROOM.COM" at center positioning
-          if (saved.textOverlay && (!saved.textOverlay.text || saved.textOverlay.text === 'RIDDIM ROOM')) {
-            saved.textOverlay.text = 'RIDDIMROOM.COM';
-            saved.textOverlay.x = 50;
-            saved.textOverlay.y = 50;
+          // Migration: If the loaded text overlay matches old "RIDDIM ROOM" or is empty, migrate it to "RIDDIMROOM.COM" at bottom center positioning (y=90)
+          if (saved.textOverlay) {
+            if (!saved.textOverlay.text || saved.textOverlay.text === 'RIDDIM ROOM') {
+              saved.textOverlay.text = 'RIDDIMROOM.COM';
+            }
+            if (saved.textOverlay.y === 50) {
+              saved.textOverlay.y = 90;
+            }
           }
           
           // Merge with INITIAL_SETTINGS to ensure new properties like 'slots' exist
@@ -4264,8 +4224,13 @@ export default function App() {
         } else {
           // Fallback if asset is missing (like custom reset)
           assetUrl = RIDDIM_ROOM_DEFAULT_LOGO;
-          const defaultBlob = new Blob([RIDDIM_ROOM_LOGO_SVG], { type: 'image/svg+xml;charset=utf-8' });
-          await setLogo(defaultBlob);
+          try {
+            const res = await fetch(RIDDIM_ROOM_DEFAULT_LOGO);
+            const defaultBlob = await res.blob();
+            await setLogo(defaultBlob);
+          } catch (err) {
+            console.error("Failed to fetch custom logo blob:", err);
+          }
         }
         
         setTimeout(() => {
@@ -4278,8 +4243,13 @@ export default function App() {
         await localforage.removeItem('eventcam_removal_method');
         setRemovalMethod('ai');
         assetUrl = RIDDIM_ROOM_DEFAULT_LOGO;
-        const defaultBlob = new Blob([RIDDIM_ROOM_LOGO_SVG], { type: 'image/svg+xml;charset=utf-8' });
-        await setLogo(defaultBlob);
+        try {
+          const res = await fetch(RIDDIM_ROOM_DEFAULT_LOGO);
+          const defaultBlob = await res.blob();
+          await setLogo(defaultBlob);
+        } catch (err) {
+          console.error("Failed to fetch custom logo blob:", err);
+        }
         setTimeout(() => {
           isInitializingRef.current = false;
         }, 100);
@@ -4666,12 +4636,12 @@ export default function App() {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-xl font-black text-white uppercase tracking-widest leading-none">DEVELOPMENT TRIAL EXPIRED</h1>
-            <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mt-1">Temporary access closed on {formattedExpiryDate}</p>
+            <h1 className="text-xl font-black text-white uppercase tracking-widest leading-none">GLOBAL ACCESS DISABLED</h1>
+            <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mt-1">Temporary access has been disabled by the administrator</p>
           </div>
 
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-relaxed max-w-xs">
-            The 7-day development preview of this EventCam design session has concluded. To unlock the builder template or gain final production release access, contact the administrator.
+            Global access to this EventCam session has been disabled. To request access, contact the event administrator.
           </p>
 
           <div className="flex flex-col gap-3 w-full max-w-xs pt-2">
@@ -4749,7 +4719,7 @@ export default function App() {
                         <span className="text-[8px] font-black text-white uppercase tracking-widest">Removing Background</span>
                         <div className="w-24 h-1 bg-white/10 rounded-full mt-1 overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-[#009B3A] via-[#FFD100] to-[#D21034]"
+                            className="h-full bg-gradient-to-r from-[#009B3A] via-[#FFD100] to-[#FF5E00]"
                             initial={{ width: 0 }}
                             animate={{ width: `${processingProgress}%` }}
                           />
@@ -5248,7 +5218,7 @@ export default function App() {
                       {/* Launch Trigger */}
                       <button 
                         onClick={handleLaunch}
-                        className="w-full py-7 bg-gradient-to-r from-[#009B3A] via-[#FFD100] to-[#D21034] hover:brightness-110 text-black font-black uppercase tracking-[0.4em] text-[10px] rounded-[32px] shadow-[0_20px_60px_rgba(255,208,0,0.2)] active:scale-[0.98] transition-all flex items-center justify-center gap-4 group"
+                        className="w-full py-7 bg-gradient-to-r from-[#009B3A] via-[#FFD100] to-[#FF5E00] hover:brightness-110 text-black font-black uppercase tracking-[0.4em] text-[10px] rounded-[32px] shadow-[0_20px_60px_rgba(255,208,0,0.2)] active:scale-[0.98] transition-all flex items-center justify-center gap-4 group"
                       >
                         LAUNCH LIVE CAM
                         <Camera size={20} className="group-hover:rotate-12 transition-transform" />
@@ -5519,22 +5489,8 @@ export default function App() {
                     <div className="md:col-span-5 space-y-6">
                       <div className="bg-zinc-950/60 border border-zinc-850 rounded-[24px] p-5 space-y-5">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-[#FFD100] uppercase tracking-widest">Expiration Controls</span>
+                          <span className="text-[10px] font-black text-[#FFD100] uppercase tracking-widest">Access Controls</span>
                           <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">Active Policy</span>
-                        </div>
-
-                        {/* Expiration date controller */}
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest block font-sans">Access Expiry Date</label>
-                          <div className="relative">
-                            <input 
-                              type="date" 
-                              value={tempExpiresAt}
-                              onChange={(e) => setTempExpiresAt(e.target.value)}
-                              className="w-full bg-zinc-900 border border-zinc-850 rounded-xl px-4 py-3 text-white text-[11px] font-extrabold tracking-widest hover:border-zinc-750 transition-colors focus:outline-none focus:ring-1 focus:ring-[#FFD100]"
-                            />
-                          </div>
-                          <span className="text-[8px] text-zinc-500 block leading-normal mt-1">Link expires at 23:59:59 (UTC) on the selected target date.</span>
                         </div>
 
                         {/* Hard disable kill-switch state */}
@@ -5560,7 +5516,7 @@ export default function App() {
                         </div>
 
                         <button
-                          onClick={() => saveAdminSettings(!!globalConfig?.disabled, tempExpiresAt)}
+                          onClick={() => saveAdminSettings(!!globalConfig?.disabled)}
                           disabled={configSaving}
                           className="w-full py-4 bg-white text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-zinc-100 transition-all disabled:opacity-40 flex items-center justify-center gap-2 shadow-xl"
                         >
